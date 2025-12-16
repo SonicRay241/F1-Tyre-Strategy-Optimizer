@@ -11,9 +11,11 @@ This project is about optimizing tyre strategies for the lowest forecasted race 
 
 ## Objective 
 Minimizing the time needed to complete the race
+
 $$
     \text{Min Race Time} = P \times (N-1) + \sum^{N}_{i=1} \space F(T_i, L_i) + \text{Fuel Penalty}
 $$
+
 Where:
 - $P =$ Pit penalty (s)
 - $N =$ Amount of stints
