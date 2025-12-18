@@ -4,12 +4,14 @@ import numpy as np
 import pyomo.environ as pyo
 from collections import defaultdict
 
+tyre_tuple = namedtuple("Tyre", ["id", "compound", "init_age"])
+
 class F1StrategyOptimizer:
     def __init__(
         self,
         track: str,
         race_laps: int,
-        available_tyres,
+        available_tyres: tyre_tuple,
         pit_stop_overhead = 25.0,
         models_path = "./models",
         baseline_filename = "baselines.joblib",
@@ -31,14 +33,8 @@ class F1StrategyOptimizer:
         self.models = joblib.load(models_path + "/" + tyre_models_filename)
         self.max_age_map = joblib.load(models_path + "/" + max_age_map_filename)
 
-
         self.avg_baselines_dict = self.create_avg_baseline()
         self.lap_time_data = self.precompute_stint_times()
-
-    @staticmethod
-    def tyre_tuple(id, compound, init_age):
-        tyre_tuple = namedtuple("Tyre", ["id", "compound", "init_age"])
-        return tyre_tuple(id, compound, init_age)
 
     def create_avg_baseline(self):
         avg_baselines_dict = {}
@@ -55,53 +51,6 @@ class F1StrategyOptimizer:
             avg_baselines_dict[key] = sum(avg_baselines_dict[key]) / len(avg_baselines_dict[key])
 
         return avg_baselines_dict
-    
-    def print_results(self, results, model):
-        print(f"Track        : {self.track}")
-        print(f"Race Laps    : {self.race_laps}")
-        print(f"Pit Stop Time: {self.pit_stop_overhead}")
-
-        print("\nAvailable Tyres:")
-        for t in self.available_tyres:
-            print(f"  {t.id} {f'(Age: {t.init_age})' if t.init_age > 0 else '(Fresh)'}")
-
-        print("\nMax Tyre Age:")
-        for compound in ["SOFT", "MEDIUM", "HARD"]:
-            print(f"  {compound}: {self.max_age_map[(self.track, compound)]}")
-
-        if results.solver.termination_condition == "optimal":
-            print(f"\n===== OPTIMIZED STRATEGY =====")
-
-            total_time = pyo.value(model.obj)
-            print(f"Total race time: {total_time:.2f} s")
-
-            used_tyres = [t for t in model.tyres if pyo.value(model.use_stint[t]) > 0.5]
-            num_stints = len(used_tyres)
-            num_pitstops = max(0, num_stints - 1)
-
-            print(f"Stints used    : {num_stints}")
-            print(f"Pit stops      : {num_pitstops}")
-            print("\nStint details:")
-
-            for t in model.tyres:
-                if pyo.value(model.use_stint[t]) > 0.5:
-                    stint_laps = [
-                        l for l in model.L
-                        if pyo.value(model.run_lap[t, l]) > 0.5
-                    ]
-
-                    stint_length = len(stint_laps)
-                    stint_time = sum(
-                        pyo.value(model.lap_time[t, l])
-                        for l in stint_laps
-                    )
-
-                    print(f"  {t}:")
-                    print(f"    Laps run : {stint_length}")
-                    print(f"    Stint time: {stint_time:.2f} s")
-
-        else:
-            print("Cannot find optimal strategy")
     
     def predict_lap_time_for_age(self, track_name, compound, tyre_age):
         """
@@ -266,3 +215,84 @@ class F1StrategyOptimizer:
         model.obj = pyo.Objective(rule=total_race_time, sense=pyo.minimize)
 
         return model
+
+    def get_tyre_info(self, tyre_id):
+        return next((t for t in self.available_tyres if t.id == tyre_id), None)
+
+    def print_results(self, results, model):
+        print(f"Track        : {self.track}")
+        print(f"Race Laps    : {self.race_laps}")
+        print(f"Pit Stop Time: {self.pit_stop_overhead}")
+
+        print("\nAvailable Tyres:")
+        for t in self.available_tyres:
+            print(f"  {t.id} {f'(Age: {t.init_age})' if t.init_age > 0 else '(Fresh)'}")
+
+        print("\nMax Tyre Age:")
+        for compound in ["SOFT", "MEDIUM", "HARD"]:
+            print(f"  {compound}: {self.max_age_map[(self.track, compound)]}")
+
+        if results.solver.termination_condition == "optimal":
+            print(f"\n===== OPTIMIZED STRATEGY =====")
+
+            total_time = pyo.value(model.obj)
+            print(f"Total race time: {total_time:.2f} s")
+
+            used_tyres = [t for t in model.tyres if pyo.value(model.use_stint[t]) > 0.5]
+            num_stints = len(used_tyres)
+            num_pitstops = max(0, num_stints - 1)
+
+            print(f"Stints used    : {num_stints}")
+            print(f"Pit stops      : {num_pitstops}")
+            print("\nStint details:")
+
+            for t in model.tyres:
+                if pyo.value(model.use_stint[t]) > 0.5:
+                    stint_laps = [
+                        l for l in model.L
+                        if pyo.value(model.run_lap[t, l]) > 0.5
+                    ]
+
+                    stint_length = len(stint_laps)
+                    stint_time = sum(
+                        pyo.value(model.lap_time[t, l])
+                        for l in stint_laps
+                    )
+
+                    print(f"  {t}:")
+                    print(f"    Laps run : {stint_length}")
+                    print(f"    Stint time: {stint_time:.2f} s")
+
+        else:
+            print("Cannot find optimal strategy")
+
+    def extract_solution(self, model):
+        strategy = []
+
+        for t in model.tyres:
+            if pyo.value(model.use_stint[t]) > 0.5:
+                stint_laps = [
+                    l for l in model.L
+                    if pyo.value(model.run_lap[t, l]) > 0.5
+                ]
+
+                stint_length = len(stint_laps)
+                stint_time = sum(
+                    pyo.value(model.lap_time[t, l])
+                    for l in stint_laps
+                )
+
+                tyre_info = self.get_tyre_info(t)
+                curr_idx = len(strategy)
+
+                strategy.append({
+                    "tyre_id": t,
+                    "stint_number": 1 + curr_idx,
+                    "driver_number": 0,
+                    "lap_start": 1 if curr_idx == 0 else (strategy[curr_idx-1]["lap_end"] + 1),
+                    "lap_end": (0 if curr_idx == 0 else strategy[curr_idx-1]["lap_end"]) + stint_length,
+                    "compound": tyre_info.compound,
+                    "tyre_age_at_start": tyre_info.init_age,
+                })
+
+        return strategy
