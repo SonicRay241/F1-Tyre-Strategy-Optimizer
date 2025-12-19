@@ -23,8 +23,8 @@ class F1StrategyOptimizer:
         self.track = track
         self.race_laps = race_laps
 
-        if len(available_tyres) not in (7, 8):
-            raise ValueError("Available tyres for race day must be 7 or 8")
+        if len(available_tyres) not in (6, 7):
+            raise ValueError("Available tyres for race day must be 6 or 7")
 
         self.available_tyres = available_tyres
         self.pit_stop_overhead = pit_stop_overhead
