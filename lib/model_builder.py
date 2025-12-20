@@ -294,54 +294,7 @@ class F1StrategyOptimizer:
                     "lap_end": (0 if curr_idx == 0 else strategy[curr_idx-1]["lap_end"]) + stint_length,
                     "compound": tyre_info.compound,
                     "tyre_age_at_start": tyre_info.init_age,
+                    "stint_time": stint_time
                 })
 
         return strategy
-    
-    def get_results(self, results, model):
-        if results.solver.termination_condition != "optimal":
-            return None, None
-
-        # ---------- Race-level summary ----------
-        total_time = pyo.value(model.obj)
-
-        used_tyres = [
-            t for t in model.tyres
-            if pyo.value(model.use_stint[t]) > 0.5
-        ]
-
-        num_stints = len(used_tyres)
-        num_pitstops = max(0, num_stints - 1)
-
-        race_summary = {
-            "track": self.track,
-            "race_laps": self.race_laps,
-            "pit_stop_time": self.pit_stop_overhead,
-            "n_stints": num_stints,
-            "n_pitstops": num_pitstops,
-            "total_race_time": total_time,
-        }
-
-        # ---------- Stint-level table ----------
-        stint_rows = []
-        
-        for t in model.tyres:
-                if pyo.value(model.use_stint[t]) > 0.5:
-                    stint_laps = [
-                        l for l in model.L
-                        if pyo.value(model.run_lap[t, l]) > 0.5
-                    ]
-
-                    stint_length = len(stint_laps)
-                    stint_time = sum(
-                        pyo.value(model.lap_time[t, l])
-                        for l in stint_laps
-                    )
-            
-                    stint_rows.append({
-                        "track": self.track,
-                        "tyre_id": t,
-                        "laps": stint_length,
-                        "stint_time": stint_time,
-                    })
-        return race_summary, stint_rows
