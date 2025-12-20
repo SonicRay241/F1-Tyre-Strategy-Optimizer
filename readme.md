@@ -13,7 +13,7 @@ This project is about optimizing tyre strategies for the lowest forecasted race 
 Minimizing the time needed to complete the race
 
 $$
-    \text{Min Race Time} = P \times (N-1) + \sum^{N}_{i=1} \space F(T_i, L_i) + \text{Fuel Penalty}
+    \text{Min Race Time} =(N-1) \times P + \sum^{N}_{i=1} \space F(T_i, L_i)
 $$
 
 Where:
