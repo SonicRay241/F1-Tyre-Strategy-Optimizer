@@ -13,11 +13,12 @@ This project is about optimizing tyre strategies for the lowest forecasted race 
 Minimizing the time needed to complete the race
 
 $$
-    \text{Min Race Time} =(N-1) \times P + \sum^{N}_{i=1} \space F(T_i, L_i)
+    \text{Min Race Time} =(N-1) \times P + \sum^{N}_{i=1} \space F(T_i, L_i) * S_i
 $$
 
 Where:
 - $P =$ Pit penalty (s)
+- $S =$ Stint is used
 - $N =$ Amount of stints
 - $F =$ Function to forecast stint time
 - $T_i =$ Chosen Tyre
